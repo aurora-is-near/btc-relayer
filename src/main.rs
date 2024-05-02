@@ -1,9 +1,49 @@
 use near_jsonrpc_client::{methods, JsonRpcClient};
-use near_jsonrpc_primitives::types::transactions::TransactionInfo;
 
-use bitcoincore_rpc::{Auth, Client, RpcApi};
+use bitcoincore_rpc::{Auth, Client as BitcoinClient, RpcApi};
+use bitcoincore_rpc::bitcoin::block::Header;
 
 mod utils;
+
+// Keep the BitcoinRelay and Synchronizer structs the same as before
+
+struct BitcoinRelay {
+}
+
+impl BitcoinRelay {
+    fn save_block_header(&self, block_header: Header) {
+        // Save the block header
+        println!("Saving block header: {:?}", block_header);
+    }
+}
+
+struct Synchronizer {
+    rpc: BitcoinClient,
+    relay: BitcoinRelay,
+}
+
+impl Synchronizer {
+    pub fn new(rpc: BitcoinClient, relay: BitcoinRelay) -> Self {
+        Self { rpc, relay }
+    }
+    fn sync(&mut self) {
+        let mut current_height = 0;
+
+        loop {
+            let block_hash = self.rpc.get_block_hash(current_height).unwrap();
+            let block_header = self.rpc.get_block_header(&block_hash).unwrap();
+
+            self.relay.save_block_header(block_header);
+
+            current_height += 1;
+
+            // TODO: How to stop properly?
+            if current_height == 1_000 {
+                break;
+            }
+        }
+    }
+}
 
 pub fn specify_block_reference() -> std::io::Result<near_primitives::types::BlockReference> {
     println!("=========[Block Reference]=========");
@@ -64,6 +104,26 @@ pub fn specify_block_reference() -> std::io::Result<near_primitives::types::Bloc
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
 
+    let rpc = BitcoinClient::new(
+        "http://127.0.0.1:8332",
+        Auth::UserPass(
+            "raven".to_string(),
+            "raven_is_here_for_your_bitcoins".to_string()
+        )
+    ).expect("failed to create a bitcoin client");
+
+    let best_block_hash = rpc.get_best_block_hash().unwrap();
+    println!("best block hash: {}", best_block_hash);
+
+    println!("run block reader");
+    let relay = BitcoinRelay {};
+    let mut synchonizer = Synchronizer::new(rpc, relay);
+
+    synchonizer.sync();
+    println!("end running block reader");
+
+    return Ok(());
+
     let client = utils::select_network()?;
 
     // tolerate only 3 retries
@@ -92,27 +152,3 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
-
-/*fn main() {
-    let mainnet_client = JsonRpcClient::connect("https://archival-rpc.mainnet.near.org");
-
-    let tx_status_request = methods::tx::RpcTransactionStatusRequest {
-        transaction_info: TransactionInfo::TransactionId {
-            hash: "9FtHUFBQsZ2MG77K3x3MJ9wjX3UT8zE1TczCrhZEcG8U".parse()?,
-            account_id: "miraclx.near".parse()?,
-        },
-    };
-
-    // call a method on the server via the connected client
-    let tx_status = mainnet_client.call(tx_status_request).await?;
-
-    println!("{:?}", tx_status);
-
-
-    /*let rpc = Client::new("http://localhost:8332",
-                          Auth::UserPass("<FILL RPC USERNAME>".to_string(),
-                                         "<FILL RPC PASSWORD>".to_string())).unwrap();
-
-    let best_block_hash = rpc.get_best_block_hash().unwrap();
-    println!("best block hash: {}", best_block_hash);*/
-}*/
