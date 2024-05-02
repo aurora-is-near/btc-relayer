@@ -1,4 +1,4 @@
-use near_jsonrpc_client::{methods, JsonRpcClient};
+use near_jsonrpc_client::methods;
 
 use bitcoincore_rpc::{Auth, Client as BitcoinClient, RpcApi};
 use bitcoincore_rpc::bitcoin::block::Header;
