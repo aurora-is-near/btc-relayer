@@ -10,6 +10,8 @@ mod near_client;
 mod bitcoin_client;
 mod config;
 
+const GENESIS_BLOCK_HEIGHT: u64 = 0;
+
 struct Synchronizer {
     bitcoin_client: BitcoinClient,
     near_client: NearClient,
@@ -20,7 +22,7 @@ impl Synchronizer {
         Self { bitcoin_client, near_client }
     }
     async fn sync(&mut self) {
-        let mut current_height = 0;
+        let mut current_height = self.get_block_height();
 
         loop {
             // Get the latest block height from the Bitcoin client
@@ -69,6 +71,10 @@ impl Synchronizer {
         }
 
         false
+    }
+
+    fn get_block_height(&self) -> u64 {
+        GENESIS_BLOCK_HEIGHT
     }
 }
 
