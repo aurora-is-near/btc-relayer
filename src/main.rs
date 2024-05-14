@@ -36,8 +36,11 @@ impl Synchronizer {
             let block_hash = self.bitcoin_client.get_block_hash(current_height);
             let block_header = self.bitcoin_client.get_block_header(&block_hash);
 
+            // detecting if we might be in fork
+            let fork_detected = self.detect_fork(block_hash, block_header, current_height).await;
+
             // TODO: It is OK to catch up, but to read everything in this way is not efficient
-            // TODO: block confirmation issue (what if we are forking)
+            // TODO: Add retry logic and more solid error handling
             self.near_client
                 .submit_block_header(block_header.clone())
                 .await
@@ -50,6 +53,22 @@ impl Synchronizer {
 
             current_height += 1;
         }
+    }
+
+    // Check if we detected a forking point
+    async fn detect_fork(&self, block_hash: bitcoincore_rpc::bitcoin::BlockHash, block_header: Header, current_height: u64) -> bool {
+        if current_height > 0 {
+            let block_hash = self.bitcoin_client.get_block_hash(current_height - 1);
+            let block_header = self.bitcoin_client.get_block_header(&block_hash);
+            let near_block_header = self.near_client.read_last_block_header().await.expect("read block header succesfully");
+
+            if block_header.prev_blockhash != near_block_header.prev_blockhash {
+                error!("Fork detected at block height: {}", current_height);
+                return true
+            }
+        }
+
+        false
     }
 }
 

@@ -115,7 +115,7 @@ impl Client {
         Ok(())
     }
 
-    pub async fn read_last_block_header(&self) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn read_last_block_header(&self) -> Result<Header, Box<dyn std::error::Error>> {
         let node_url = self.config.near.endpoint.clone();
         let contract_id = self.config.near.account_name.clone();
 
@@ -132,13 +132,16 @@ impl Client {
             },
         };
         let response = client.call(read_request).await?;
+
         if let QueryResponseKind::CallResult(result) = response.kind {
-            println!("{:#?}", from_slice::<Header>(&result.result)?);
+            let header = from_slice::<Header>(&result.result)?;
+            println!("{:#?}", header);
+            println!("Block Height: {}", response.block_height);
+            println!("Block Hash: {}", response.block_hash);
+
+            return Ok(header);
+        } else {
+            return Err("failed to read block header")?;
         }
-
-        println!("Block Height: {}", response.block_height);
-        println!("Block Hash: {}", response.block_hash);
-
-        Ok(())
     }
 }
