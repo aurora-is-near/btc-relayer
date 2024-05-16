@@ -1,4 +1,5 @@
 use bitcoincore_rpc::bitcoin::block::Header;
+use bitcoincore_rpc::bitcoin::Transaction;
 use log::{debug, error, log_enabled, info, Level};
 use serde_json::{from_slice, json};
 
@@ -39,14 +40,15 @@ impl Synchronizer {
             let block_header = self.bitcoin_client.get_block_header(&block_hash);
 
             // detecting if we might be in fork
-            let fork_detected = self.detect_fork(block_hash, block_header, current_height).await;
+            let fork_detected = self.detect_fork(block_hash, block_header, current_height);
+            let _ = self.get_first_transaction().await;
 
             // TODO: It is OK to catch up, but to read everything in this way is not efficient
             // TODO: Add retry logic and more solid error handling
-            self.near_client
+            /*self.near_client
                 .submit_block_header(block_header.clone())
                 .await
-                .expect("to submit a block header successfully");
+                .expect("to submit a block header successfully");*/
 
             if current_height >= 0 {
                 // Only do one iteration for testing purpose
@@ -59,18 +61,27 @@ impl Synchronizer {
 
     // Check if we detected a forking point
     async fn detect_fork(&self, block_hash: bitcoincore_rpc::bitcoin::BlockHash, block_header: Header, current_height: u64) -> bool {
-        if current_height > 0 {
-            let block_hash = self.bitcoin_client.get_block_hash(current_height - 1);
-            let block_header = self.bitcoin_client.get_block_header(&block_hash);
-            let near_block_header = self.near_client.read_last_block_header().await.expect("read block header succesfully");
+        let near_block_header = self.near_client.read_last_block_header().await.expect("read block header succesfully");
 
-            if block_header.prev_blockhash != near_block_header.prev_blockhash {
-                error!("Fork detected at block height: {}", current_height);
-                return true
-            }
+        // TODO: update logic here, check the height of the block instead of the block hash
+        if block_header.prev_blockhash != near_block_header.prev_blockhash {
+            error!("Fork detected at block height: {}", current_height);
+            true
+        } else {
+            false
         }
+    }
 
-        false
+    async fn get_first_transaction(&self) -> Transaction {
+        let block_hash = self.bitcoin_client.get_block_hash(277136);
+        let block = self.bitcoin_client.get_block(&block_hash);
+        let root = block.compute_merkle_root().unwrap();
+        let transaction = block.txdata[0].clone();
+
+        let txid = transaction.txid();
+        let merkle_proof = self.bitcoin_client.compute_merkle_proof(block, root);
+
+        return transaction;
     }
 
     fn get_block_height(&self) -> u64 {
@@ -89,15 +100,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let bitcoin_client = BitcoinClient::new(config.clone());
     let near_client = NearClient::new(config.clone());
 
-    let best_block_hash = bitcoin_client.get_best_block_hash();
-    debug!("best block hash: {}", best_block_hash);
+    // let best_block_hash = bitcoin_client.get_best_block_hash();
+    // debug!("best block hash: {}", best_block_hash);
 
     info!("run block header sync");
     let mut synchonizer = Synchronizer::new(bitcoin_client, near_client.clone());
     synchonizer.sync().await;
     info!("end block header sync");
 
-    near_client.read_last_block_header().await.expect("read block header succesfully");
+    //near_client.read_last_block_header().await.expect("read block header succesfully");
 
     Ok(())
 }

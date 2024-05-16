@@ -17,4 +17,5 @@ serde_json = "1.0.116"
 serde = { version = "1.0.200", features = ["derive"] }
 toml = "0.8.12"
 log = "0.4.21"
+rs_merkle = "1.4.2"
 
