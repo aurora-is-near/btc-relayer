@@ -10,6 +10,7 @@ use crate::bitcoin_client::Client as BitcoinClient;
 mod near_client;
 mod bitcoin_client;
 mod config;
+mod merkle_tools;
 
 const GENESIS_BLOCK_HEIGHT: u64 = 0;
 
@@ -74,6 +75,7 @@ impl Synchronizer {
 
     async fn get_first_transaction(&self) -> Transaction {
         let block_hash = self.bitcoin_client.get_block_hash(277136);
+
         let block = self.bitcoin_client.get_block(&block_hash);
         let root = block.compute_merkle_root().unwrap();
         let transaction = block.txdata[0].clone();

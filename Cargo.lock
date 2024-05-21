@@ -558,15 +558,20 @@ dependencies = [
  "bitcoin 0.32.0",
  "bitcoincore-rpc",
  "env_logger",
+ "hex",
  "log",
+ "merkle-lite",
  "near-crypto",
  "near-jsonrpc-client",
  "near-jsonrpc-primitives",
  "near-primitives",
+ "rand_core 0.6.4",
  "reqwest",
  "rs_merkle",
  "serde",
  "serde_json",
+ "sha2",
+ "sha3",
  "tokio",
  "toml 0.8.12",
 ]
@@ -2034,6 +2039,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "488016bfae457b036d996092f6cb448677611ce4449e970ceaf42695203f218a"
 dependencies = [
  "autocfg",
+]
+
+[[package]]
+name = "merkle-lite"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9700ee109e3d0f9b4a4eab15e6517e4dda66cbfae17ed0305a8b1d55f888782d"
+dependencies = [
+ "digest 0.10.7",
 ]
 
 [[package]]
