@@ -6,10 +6,10 @@ use near_primitives::transaction::{Action, FunctionCallAction, Transaction};
 use near_primitives::types::{AccountId, BlockReference};
 use near_primitives::views::TxExecutionStatus;
 
-use std::str::FromStr;
 use bitcoincore_rpc::bitcoin;
 use bitcoincore_rpc::bitcoin::block::Header;
 use serde_json::{from_slice, json};
+use std::str::FromStr;
 
 use tokio::time;
 
@@ -17,27 +17,32 @@ use crate::config::Config;
 
 const SUBMIT_BLOCK_HEADER: &str = "submit_block_header";
 const GET_BLOCK_HEADER: &str = "get_block_header";
+const VERIFY_TRANSACTION_INCLUSION: &str = "verify_transaction_inclusion";
 
 #[derive(Debug, Clone)]
 pub struct Client {
-    config: Config
+    config: Config,
 }
 
 impl Client {
     pub fn new(config: Config) -> Self {
         Self { config }
     }
-    pub async fn submit_block_header(&self, header: Header) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn submit_block_header(
+        &self,
+        header: Header,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let client = JsonRpcClient::connect(&self.config.near.endpoint);
         let signer_account_id = AccountId::from_str(&self.config.near.account_name).unwrap();
-        let signer_secret_key = near_crypto::SecretKey::from_str(&self.config.near.secret_key).unwrap();
+        let signer_secret_key =
+            near_crypto::SecretKey::from_str(&self.config.near.secret_key).unwrap();
         let args = serde_json::json!({
             "block_header": serde_json::to_value(&header).expect("bitcoin should be validate before")
         });
 
         let signer = near_crypto::InMemorySigner::from_secret_key(
             signer_account_id.clone(),
-            signer_secret_key
+            signer_secret_key,
         );
 
         let access_key_query_response = client
@@ -122,9 +127,10 @@ impl Client {
         let args = json!({});
         let client = near_jsonrpc_client::JsonRpcClient::connect(node_url);
 
-
         let read_request = near_jsonrpc_client::methods::query::RpcQueryRequest {
-            block_reference: near_primitives::types::BlockReference::Finality(near_primitives::types::Finality::Final),
+            block_reference: near_primitives::types::BlockReference::Finality(
+                near_primitives::types::Finality::Final,
+            ),
             request: near_primitives::views::QueryRequest::CallFunction {
                 account_id: contract_id.parse().unwrap(),
                 method_name: GET_BLOCK_HEADER.to_string(),
@@ -140,6 +146,47 @@ impl Client {
             println!("Block Hash: {}", response.block_hash);
 
             return Ok(header);
+        } else {
+            return Err("failed to read block header")?;
+        }
+    }
+
+    pub async fn verify_transaction_inclusion(
+        &self,
+        transaction_hash: String,
+        transaction_position: usize,
+        transaction_block_height: usize,
+        merkle_proof: Vec<String>,
+    ) -> Result<bool, Box<dyn std::error::Error>> {
+        let node_url = self.config.near.endpoint.clone();
+        let contract_id = self.config.near.account_name.clone();
+
+        let args = serde_json::json!({
+            "txid": transaction_hash,
+            "tx_block_height": transaction_block_height,
+            "tx_index": transaction_position,
+            "merkle_proof": merkle_proof,
+            "confirmations": 0,
+        });
+
+        let client = near_jsonrpc_client::JsonRpcClient::connect(node_url);
+
+        let read_request = near_jsonrpc_client::methods::query::RpcQueryRequest {
+            block_reference: near_primitives::types::BlockReference::Finality(
+                near_primitives::types::Finality::Final,
+            ),
+            request: near_primitives::views::QueryRequest::CallFunction {
+                account_id: contract_id.parse().unwrap(),
+                method_name: VERIFY_TRANSACTION_INCLUSION.to_string(),
+                args: args.to_string().into_bytes().into(),
+            },
+        };
+        let response = client.call(read_request).await?;
+
+        if let QueryResponseKind::CallResult(result) = response.kind {
+            let included = from_slice::<bool>(&result.result)?;
+            println!("{:#?}", included);
+            return Ok(included);
         } else {
             return Err("failed to read block header")?;
         }
