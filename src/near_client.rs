@@ -31,13 +31,15 @@ impl Client {
     pub async fn submit_block_header(
         &self,
         header: Header,
+        height: usize,
     ) -> Result<(), Box<dyn std::error::Error>> {
         let client = JsonRpcClient::connect(&self.config.near.endpoint);
         let signer_account_id = AccountId::from_str(&self.config.near.account_name).unwrap();
         let signer_secret_key =
             near_crypto::SecretKey::from_str(&self.config.near.secret_key).unwrap();
-        let args = serde_json::json!({
-            "block_header": serde_json::to_value(&header).expect("bitcoin should be validate before")
+        let args = json!({
+            "block_header": serde_json::to_value(&header).expect("bitcoin should be validate before"),
+            "height": height,
         });
 
         let signer = near_crypto::InMemorySigner::from_secret_key(

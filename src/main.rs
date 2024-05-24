@@ -50,10 +50,10 @@ impl Synchronizer {
 
             // TODO: It is OK to catch up, but to read everything in this way is not efficient
             // TODO: Add retry logic and more solid error handling
-            /*self.near_client
-            .submit_block_header(block_header.clone())
+            self.near_client
+            .submit_block_header(block_header.clone(), current_height as usize)
             .await
-            .expect("to submit a block header successfully");*/
+            .expect("failed to submit block header");
 
             if current_height >= 0 {
                 // Only do one iteration for testing purpose
@@ -100,7 +100,7 @@ impl Synchronizer {
     }
 
     fn get_block_height(&self) -> u64 {
-        GENESIS_BLOCK_HEIGHT
+        277136
     }
 }
 
@@ -143,6 +143,11 @@ async fn verify_transaction_flow(bitcoin_client: BitcoinClient, near_client: Nea
         .map(|height| height.parse::<usize>().unwrap_or_default())
         .unwrap_or_default();
 
+    // Read the transaction_block_height from the environment variable
+    let force_transaction_hash = env::var("FORCE_TRANSACTION_HASH")
+        .map(|hash| hash.parse::<String>().unwrap_or_default())
+        .unwrap_or_default();
+
     let block = bitcoin_client.get_block_by_height(transaction_block_height as u64);
     let transactions = block
         .txdata
@@ -154,6 +159,12 @@ async fn verify_transaction_flow(bitcoin_client: BitcoinClient, near_client: Nea
     let transaction_hash = transactions[transaction_position].clone(); // Provide the transaction hash
     let merkle_proof = bitcoin_client.compute_merkle_proof(block, transaction_position); // Provide the merkle proof
 
+    // If we need to force some specific transaction hash
+    let transaction_hash = if force_transaction_hash.is_empty() {
+        transaction_hash
+    } else {
+        force_transaction_hash
+    };
     let result = near_client
         .verify_transaction_inclusion(
             transaction_hash,
